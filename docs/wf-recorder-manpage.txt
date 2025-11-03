@@ -1,0 +1,133 @@
+WF-RECORDER(1)                                                                                                      General Commands Manual                                                                                                    WF-RECORDER(1)
+
+NAME
+       wf-recorder — simple screen recording program for wlroots-based compositors
+
+SYNOPSIS
+       wf-recorder  [-abcCdDefFghlmopPrRvxX]  [-a,  --audio  [=DEVICE]]  [-b,  --bframes  max_b_frames]  [-B,  --buffrate  buffrate]  [-c,  --codec  output_codec] [-r, --framerate framerate] [-d, --device encoding_device] [--no-dmabuf] [-D, --no-damage]
+                   [-f, --file filename.ext] [-F filter_string] [-g, --geometry geometry] [-h, --help] [-l, --log]  [-m,  --muxer  muxer]  [-L,  --list-output]  [-o,  --output  output]  [-p,  --codec-param  [option_param=option_value]]  [-v,  --version]
+                   [-x, --pixel-format] [--audio-backend audio_backend] [-C, --audio-codec output_audio_codec] [-P, --audio-codec-param [option_param=option_value]] [-R, --sample-rate sample_rate] [-X, --sample-format sample_format] [-y, --overwrite]
+
+DESCRIPTION
+       wf-recorder is a tool built to record your screen on Wayland compositors.  It makes use of wlr-screencopy for capturing video and ffmpeg(1) for encoding it.
+
+       In its simplest form, run wf-recorder to start recording and use ‘Ctrl+C’ to stop.  This will create a file called ‘recording.mp4’ in the current working directory using the default codec.
+
+       The options are as follows:
+
+       -a, --audio [=DEVICE]
+               Starts recording the screen with audio.
+
+               DEVICE argument is optional.  In case you want to specify the PulseAudio device which will capture the audio, you can run this command with the name of that device.  You can find your device by running
+                     $ pactl list sources | grep Name
+
+       -b, --bframes max_b_frames
+               Sets the maximum number of B-Frames to use.
+       -B, --buffrate buffrate
+               Tells the encoder a prediction of what framerate to expect.  This preserves VFR and Solves FPS limit issue of some encoders (like svt-av1).  Should be set to the same framerate as display.
+
+       -c, --codec output_codec
+               Specifies the codec of the video. Supports GIF output as well.
+
+               To change codec parameters, use -p option_name=option_value
+
+       -r, --framerate framerate
+               Sets hard constant framerate. Will duplicate frames to reach it.  This makes the resulting video CFR. Solves FPS limit issue of some encoders.
+
+       -d, --device encoding_device
+               Selects the device to use when encoding the video.
+
+               Some drivers report support for ‘rgb0’ data for vaapi input but really only support yuv.  Use the -x yuv420 option in addition to the vaapi options to convert the data in software, before sending it to the GPU.
+
+       --no-dmabuf
+               By default, wf-recorder will try to use only GPU buffers and copies if using a GPU encoder.  However, this can cause issues on some systems.  In such cases, this option will disable the GPU copy and force a CPU one.
+
+       -D, --no-damage
+               By  default,  wf-recorder  will  request a new frame from the compositor only when the screen updates. This results in a much smaller output file, which however has a variable refresh rate. When this option is on, wf-recorder does not use
+               this optimization and continuously records new frames, even if there are no updates on the screen.
+
+       -f, --file filename.ext
+               By using the -f option, the output file will have the name filename.ext and the file format will be determined by the provided extension.  If the extension is not recognized by your ffmpeg(1) muxers, the command will fail.
+
+               You can check the muxers that your ffmpeg(1) installation supports by running
+                     $ ffmpeg -muxers
+
+       -F, --filter filter_string
+               Set the ffmpeg filter to use. VAAPI requires ‘scale_vaapi=format=nv12:out_range=full‘ to work.
+
+       -g, --geometry screen_geometry
+               Selects a specific part of the screen. The format is "x,y WxH".
+
+       -h, --help
+               Prints the help screen.
+
+       -l, --log
+               Generates a log on the current terminal. For debug purposes.
+
+       -m, --muxer muxer
+               Set the output format to a specific muxer instead of detecting it from the filename.
+
+       -L, --list-output
+               List the available outputs.
+
+       -o, --output
+               Specify the output where the video is to be recorded.
+
+       -p, --codec-param [option_name=option_value]
+               Change a codec parameter. Can be used multiple times: -p option_name_1=option_value_1 -p option_name_2=option_value_2
+
+       -v, --version
+               Print the version of wf-recorder.
+
+       -x, --pixel-format pixel_format
+               Set the output pixel format.
+
+               List available formats using
+                     $ ffmpeg -pix_fmts
+
+       --audio-backend audio_backend
+               Specifies the audio backend to be used when -a is set.
+
+       -C, --audio-codec output_audio_codec
+               Specifies the codec of the audio.
+
+       -P, --audio-codec-param [option_name=option_value]
+               Change the audio codec parameters.
+
+       -R, --sample-rate sample_rate
+               Changes the audio sample rate, in HZ. The default value is 48000.
+
+       -X, --sample-format sample_format
+               Set the output audio sample format.
+
+               List available formats using
+                     $ ffmpeg -sample_fmts
+
+       -y, --overwrite
+               Force overwriting the output file without prompting.
+
+EXAMPLES
+       To select a specific part of the screen you can either use --g geometry or use https://github.com/emersion/slurp for interactive selection of the screen area that will be recorded:
+             $ wf-recorder -g "$(slurp)"
+
+       You can record screen and sound simultaneously with
+             $ wf-recorder --audio --file=recording_with_audio.mp4
+
+       To specify an audio device, use the --a<DEVICE> or ---audio=<DEVICE> options.
+
+       To specify a codec use the -c codec option. To change codec parameters, use the -p option:
+             $ wf-recorder -c libx264 -p preset=slow -p crf=18
+
+       To set a specific output format, use the -m, --muxer option. For example, to output to a video4linux2 loopback you might use:
+             $ wf-recorder --muxer=v4l2 --codec=rawvideo --file=/dev/video2
+
+       To use GPU encoding, use a VAAPI codec (for ex.  ‘h264_vaapi’ ) and specify a GPU device to use with the -d option:
+             $ wf-recorder -f test-vaapi.mkv -c h264_vaapi -d /dev/dri/renderD128
+
+       Some drivers report support for ‘rgb0’ data for ‘vaapi’ input but really only support yuv planar formats.  In this case, use the -x yuv420p option in addition to the ‘vaapi’ options to convert the data to yuv planar data before sending it to  the
+       GPU.
+
+SEE ALSO
+       ffmpeg(1), pactl(1)
+
+GNU                                                                                                                     July 30, 2022                                                                                                          WF-RECORDER(1)

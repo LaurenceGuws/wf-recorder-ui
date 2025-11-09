@@ -8,6 +8,9 @@ Wayland-native desktop interface for `wf-recorder` that wraps common recording, 
 - Discovers common audio devices/backends, exposes codec/container presets, and surfaces diagnostics helpers inline.
 - Ships static asset bundle under `assets/` and Wayland recorder manpage notes under `docs/`.
 
+## UI Preview
+![wf-recorder UI screenshot](assets/ui-screenshot.png)
+
 ## Download
 Grab the latest beta build from the releases page:
 

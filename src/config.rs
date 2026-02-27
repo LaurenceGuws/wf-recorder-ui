@@ -294,10 +294,10 @@ fn expand_home(path: String) -> String {
             buf.push(rest);
             return buf.to_string_lossy().into_owned();
         }
-    } else if path == "~" {
-        if let Ok(home) = env::var("HOME") {
-            return home;
-        }
+    } else if path == "~"
+        && let Ok(home) = env::var("HOME")
+    {
+        return home;
     }
     path
 }

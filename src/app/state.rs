@@ -128,14 +128,14 @@ impl RecorderApp {
             }
         };
 
-        if let Some(parent) = Path::new(&output_file).parent() {
-            if let Err(err) = fs::create_dir_all(parent) {
-                self.last_error = Some(format!(
-                    "Failed to create output directory {}: {err}",
-                    parent.display()
-                ));
-                return;
-            }
+        if let Some(parent) = Path::new(&output_file).parent()
+            && let Err(err) = fs::create_dir_all(parent)
+        {
+            self.last_error = Some(format!(
+                "Failed to create output directory {}: {err}",
+                parent.display()
+            ));
+            return;
         }
 
         let mut command = Command::new("wf-recorder");
@@ -335,85 +335,85 @@ impl RecorderApp {
     }
 
     pub(super) fn poll_async_tasks(&mut self) {
-        if self.outputs_loading {
-            if let Some(receiver) = &self.outputs_receiver {
-                match receiver.try_recv() {
-                    Ok(Ok(outputs)) => {
-                        self.available_outputs = outputs;
-                        self.outputs_loading = false;
-                        self.outputs_receiver = None;
-                        self.outputs_error = None;
-                    }
-                    Ok(Err(err)) => {
-                        self.outputs_error = Some(err);
-                        self.outputs_loading = false;
-                        self.outputs_receiver = None;
-                    }
-                    Err(TryRecvError::Empty) => {}
-                    Err(TryRecvError::Disconnected) => {
-                        self.outputs_loading = false;
-                        self.outputs_receiver = None;
-                        self.outputs_error =
-                            Some("Background task disconnected unexpectedly.".to_string());
-                    }
+        if self.outputs_loading
+            && let Some(receiver) = &self.outputs_receiver
+        {
+            match receiver.try_recv() {
+                Ok(Ok(outputs)) => {
+                    self.available_outputs = outputs;
+                    self.outputs_loading = false;
+                    self.outputs_receiver = None;
+                    self.outputs_error = None;
+                }
+                Ok(Err(err)) => {
+                    self.outputs_error = Some(err);
+                    self.outputs_loading = false;
+                    self.outputs_receiver = None;
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    self.outputs_loading = false;
+                    self.outputs_receiver = None;
+                    self.outputs_error =
+                        Some("Background task disconnected unexpectedly.".to_string());
                 }
             }
         }
 
-        if self.windows_loading {
-            if let Some(receiver) = &self.windows_receiver {
-                match receiver.try_recv() {
-                    Ok(Ok(windows)) => {
-                        self.available_windows = windows;
-                        self.windows_loading = false;
-                        self.windows_receiver = None;
-                        self.windows_error = None;
-                    }
-                    Ok(Err(err)) => {
-                        self.windows_error = Some(err);
-                        self.windows_loading = false;
-                        self.windows_receiver = None;
-                    }
-                    Err(TryRecvError::Empty) => {}
-                    Err(TryRecvError::Disconnected) => {
-                        self.windows_loading = false;
-                        self.windows_receiver = None;
-                        self.windows_error =
-                            Some("Window refresh task disconnected unexpectedly.".to_string());
-                    }
+        if self.windows_loading
+            && let Some(receiver) = &self.windows_receiver
+        {
+            match receiver.try_recv() {
+                Ok(Ok(windows)) => {
+                    self.available_windows = windows;
+                    self.windows_loading = false;
+                    self.windows_receiver = None;
+                    self.windows_error = None;
+                }
+                Ok(Err(err)) => {
+                    self.windows_error = Some(err);
+                    self.windows_loading = false;
+                    self.windows_receiver = None;
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    self.windows_loading = false;
+                    self.windows_receiver = None;
+                    self.windows_error =
+                        Some("Window refresh task disconnected unexpectedly.".to_string());
                 }
             }
         }
 
-        if self.audio_devices_loading {
-            if let Some(receiver) = &self.audio_devices_receiver {
-                match receiver.try_recv() {
-                    Ok(Ok(devices)) => {
-                        self.available_audio_devices = devices;
-                        self.audio_devices_loading = false;
-                        self.audio_devices_receiver = None;
-                        self.audio_devices_error = None;
-                    }
-                    Ok(Err(err)) => {
-                        self.audio_devices_error = Some(err);
-                        self.audio_devices_loading = false;
-                        self.audio_devices_receiver = None;
-                    }
-                    Err(TryRecvError::Empty) => {}
-                    Err(TryRecvError::Disconnected) => {
-                        self.audio_devices_loading = false;
-                        self.audio_devices_receiver = None;
-                        self.audio_devices_error =
-                            Some("Audio refresh task disconnected unexpectedly.".to_string());
-                    }
+        if self.audio_devices_loading
+            && let Some(receiver) = &self.audio_devices_receiver
+        {
+            match receiver.try_recv() {
+                Ok(Ok(devices)) => {
+                    self.available_audio_devices = devices;
+                    self.audio_devices_loading = false;
+                    self.audio_devices_receiver = None;
+                    self.audio_devices_error = None;
+                }
+                Ok(Err(err)) => {
+                    self.audio_devices_error = Some(err);
+                    self.audio_devices_loading = false;
+                    self.audio_devices_receiver = None;
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    self.audio_devices_loading = false;
+                    self.audio_devices_receiver = None;
+                    self.audio_devices_error =
+                        Some("Audio refresh task disconnected unexpectedly.".to_string());
                 }
             }
         }
 
-        if self.log_dirty.swap(false, Ordering::Relaxed) {
-            if let Ok(buffer) = self.log_buffer.lock() {
-                self.log_display = buffer.clone();
-            }
+        if self.log_dirty.swap(false, Ordering::Relaxed)
+            && let Ok(buffer) = self.log_buffer.lock()
+        {
+            self.log_display = buffer.clone();
         }
     }
 

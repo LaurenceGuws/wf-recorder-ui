@@ -212,7 +212,7 @@ impl App for RecorderApp {
             egui::Area::new("sidebar_reveal".into())
                 .anchor(Align2::LEFT_CENTER, [8.0, 0.0])
                 .show(ctx, |ui| {
-                    egui::Frame::window(&ui.style()).show(ui, |ui| {
+                    egui::Frame::window(ui.style()).show(ui, |ui| {
                         if ui.button("▶").clicked() {
                             self.toggle_sidebar();
                         }
@@ -231,10 +231,10 @@ impl App for RecorderApp {
                 ui.separator();
             }
 
-            if !self.status.is_running() {
-                if let Some(summary) = &self.last_recording_summary {
-                    ui.colored_label(Color32::LIGHT_GREEN, summary);
-                }
+            if !self.status.is_running()
+                && let Some(summary) = &self.last_recording_summary
+            {
+                ui.colored_label(Color32::LIGHT_GREEN, summary);
             }
 
             egui::ScrollArea::vertical()

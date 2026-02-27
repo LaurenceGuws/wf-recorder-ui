@@ -36,7 +36,11 @@ pub fn save_config(config: &RecorderConfig) {
     };
 
     if let Err(e) = fs::create_dir_all(&parent) {
-        eprintln!("[wf-recorder-ui] Could not create config dir {}: {}", parent.display(), e);
+        eprintln!(
+            "[wf-recorder-ui] Could not create config dir {}: {}",
+            parent.display(),
+            e
+        );
         return;
     }
 
@@ -53,12 +57,20 @@ pub fn save_config(config: &RecorderConfig) {
     let tmp_path = path.with_extension("json.tmp");
 
     if let Err(e) = fs::write(&tmp_path, &json) {
-        eprintln!("[wf-recorder-ui] Could not write temp config {}: {}", tmp_path.display(), e);
+        eprintln!(
+            "[wf-recorder-ui] Could not write temp config {}: {}",
+            tmp_path.display(),
+            e
+        );
         return;
     }
 
     if let Err(e) = fs::rename(&tmp_path, &path) {
-        eprintln!("[wf-recorder-ui] Could not rename temp config to {}: {}", path.display(), e);
+        eprintln!(
+            "[wf-recorder-ui] Could not rename temp config to {}: {}",
+            path.display(),
+            e
+        );
         let _ = fs::remove_file(&tmp_path);
     }
 }
@@ -88,7 +100,11 @@ pub fn load_config() -> RecorderConfig {
             }
         },
         Err(e) => {
-            eprintln!("[wf-recorder-ui] Could not read config file {}: {}", path.display(), e);
+            eprintln!(
+                "[wf-recorder-ui] Could not read config file {}: {}",
+                path.display(),
+                e
+            );
             RecorderConfig::default()
         }
     }
@@ -107,11 +123,13 @@ mod tests {
         // SAFETY: test-only; we accept the risk of concurrent env mutation in tests.
         unsafe { env::set_var("XDG_CONFIG_HOME", dir.path()) };
 
-        let mut cfg = RecorderConfig::default();
-        cfg.codec = "libx265".to_string();
-        cfg.capture_mode = CaptureMode::Area;
-        cfg.audio_mode = AudioMode::Both;
-        cfg.framerate = "60".to_string();
+        let cfg = RecorderConfig {
+            codec: "libx265".to_string(),
+            capture_mode: CaptureMode::Area,
+            audio_mode: AudioMode::Both,
+            framerate: "60".to_string(),
+            ..Default::default()
+        };
 
         save_config(&cfg);
 

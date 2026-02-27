@@ -1,15 +1,16 @@
 use chrono::Local;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CaptureMode {
     Screen,
     Window,
     Area,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AudioMode {
     None,
     System,
@@ -17,7 +18,8 @@ pub enum AudioMode {
     Both,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RecorderConfig {
     pub capture_mode: CaptureMode,
     pub audio_mode: AudioMode,
@@ -255,7 +257,7 @@ impl Default for RecorderConfig {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParamEntry {
     pub key: String,
     pub value: String,

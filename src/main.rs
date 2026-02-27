@@ -4,6 +4,7 @@ mod config;
 mod constants;
 mod discovery;
 mod models;
+mod persistence;
 
 use app::RecorderApp;
 use eframe::NativeOptions;

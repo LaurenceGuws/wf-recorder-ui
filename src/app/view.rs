@@ -57,6 +57,8 @@ fn sidebar_icon_source(icon: SidebarIcon, dark: bool) -> (&'static str, &'static
 
 impl App for RecorderApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
+        let config_snapshot = self.config.clone();
+
         self.poll_process();
         self.poll_async_tasks();
 
@@ -219,7 +221,7 @@ impl App for RecorderApp {
         }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
-            ui.heading("");
+            ui.add_space(4.0);
             let controls_width = ui.available_width();
             self.recording_controls(ui, controls_width);
             ui.separator();
@@ -229,17 +231,10 @@ impl App for RecorderApp {
                 ui.separator();
             }
 
-            if let RecorderStatus::Running(process) = &self.status {
-                let elapsed = process.started_at.elapsed().as_secs_f32();
-                ui.colored_label(
-                    Color32::from_rgb(120, 210, 255),
-                    format!(
-                        "Recording… {:.1}s elapsed. Stop when you’re ready.",
-                        elapsed
-                    ),
-                );
-            } else if let Some(summary) = &self.last_recording_summary {
-                ui.colored_label(Color32::LIGHT_GREEN, summary);
+            if !self.status.is_running() {
+                if let Some(summary) = &self.last_recording_summary {
+                    ui.colored_label(Color32::LIGHT_GREEN, summary);
+                }
             }
 
             egui::ScrollArea::vertical()
@@ -259,6 +254,16 @@ impl App for RecorderApp {
                     }
                 });
         });
+
+        // Persist whenever the user changes any setting
+        if self.config != config_snapshot {
+            crate::persistence::save_config(&self.config);
+        }
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        // Final save on close — catches any unsaved state
+        crate::persistence::save_config(&self.config);
     }
 }
 
@@ -682,8 +687,6 @@ impl RecorderApp {
         if let Some(err) = &self.audio_devices_error {
             ui.colored_label(Color32::from_rgb(255, 120, 120), err);
         }
-        self.config.audio_enabled = !matches!(self.config.audio_mode, AudioMode::None);
-
         ui.add_space(6.0);
         match self.config.audio_mode {
             AudioMode::None => {

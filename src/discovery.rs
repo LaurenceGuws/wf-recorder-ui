@@ -62,17 +62,15 @@ pub fn detect_outputs() -> Result<Vec<OutputChoice>, String> {
         outputs.push(OutputChoice { value: name, label });
     }
 
-    outputs.sort_by(|a, b| a.label.cmp(&b.label));
+    outputs.sort_by(|a, b| a.value.cmp(&b.value));
     outputs.dedup_by(|a, b| a.value == b.value);
+    outputs.sort_by(|a, b| a.label.cmp(&b.label));
 
     Ok(outputs)
 }
 
 pub fn detect_audio_devices() -> Result<Vec<AudioDevice>, String> {
-    match detect_audio_devices_with_pactl() {
-        Ok(devices) => Ok(devices),
-        Err(err) => Err(err),
-    }
+    detect_audio_devices_with_pactl()
 }
 
 fn detect_audio_devices_with_pactl() -> Result<Vec<AudioDevice>, String> {
@@ -210,13 +208,13 @@ fn collect_sway_windows(node: &Value, out: &mut Vec<WindowChoice>) {
         }
     }
 
-    let window_id = node
+    let Some(window_id) = node
         .get("window")
         .and_then(Value::as_i64)
-        .filter(|id| *id != 0);
-    if window_id.is_none() {
+        .filter(|id| *id != 0)
+    else {
         return;
-    }
+    };
 
     let rect = node.get("rect").and_then(Value::as_object);
     let (x, y, w, h) = match rect {
@@ -273,7 +271,7 @@ fn collect_sway_windows(node: &Value, out: &mut Vec<WindowChoice>) {
     };
 
     let geometry = format!("{x},{y} {w}x{h}");
-    let id = window_id.unwrap().to_string();
+    let id = window_id.to_string();
     out.push(WindowChoice {
         id,
         label,
@@ -303,11 +301,10 @@ fn detect_hypr_windows() -> Result<Vec<WindowChoice>, String> {
 
     let mut windows = Vec::new();
     for client in clients {
-        if client
+        if !client
             .get("mapped")
             .and_then(Value::as_bool)
             .unwrap_or(false)
-            == false
         {
             continue;
         }

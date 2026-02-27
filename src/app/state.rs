@@ -87,7 +87,7 @@ impl RecorderApp {
 
     pub fn new() -> Self {
         let mut app = Self {
-            config: RecorderConfig::default(),
+            config: crate::persistence::load_config(),
             status: RecorderStatus::default(),
             current_section: Section::CaptureBasics,
             log_entries: Arc::new(Mutex::new(Vec::new())),
@@ -549,25 +549,17 @@ fn shell_escape(arg: String) -> String {
 
 pub(super) fn format_exit_status(status: ExitStatus) -> String {
     if let Some(code) = status.code() {
-        format!(", exit code {code}")
-    } else {
-        #[cfg(unix)]
-        {
-            if let Some(signal) = status.signal() {
-                return format!(
-                    ", terminated by signal {} ({})",
-                    signal,
-                    signal_name(signal)
-                );
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            return ", terminated by signal".to_string();
-        }
-        #[cfg(unix)]
-        ", terminated by signal".to_string()
+        return format!(", exit code {code}");
     }
+    #[cfg(unix)]
+    if let Some(signal) = status.signal() {
+        return format!(
+            ", terminated by signal {} ({})",
+            signal,
+            signal_name(signal)
+        );
+    }
+    ", terminated by signal".to_string()
 }
 
 #[cfg(unix)]

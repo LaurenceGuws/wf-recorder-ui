@@ -68,6 +68,21 @@ pub fn detect_outputs() -> Result<Vec<OutputChoice>, String> {
     Ok(outputs)
 }
 
+pub fn detect_output_geometry(output_name: &str) -> Result<Option<String>, String> {
+    if output_name.trim().is_empty() {
+        return Ok(None);
+    }
+
+    if let Some(geometry) = detect_hypr_output_geometry(output_name)? {
+        return Ok(Some(geometry));
+    }
+    if let Some(geometry) = detect_sway_output_geometry(output_name)? {
+        return Ok(Some(geometry));
+    }
+
+    Ok(None)
+}
+
 pub fn detect_audio_devices() -> Result<Vec<AudioDevice>, String> {
     match detect_audio_devices_with_pactl() {
         Ok(devices) => Ok(devices),
@@ -111,6 +126,117 @@ fn detect_audio_devices_with_pactl() -> Result<Vec<AudioDevice>, String> {
     }
 
     Ok(devices)
+}
+
+fn detect_hypr_output_geometry(output_name: &str) -> Result<Option<String>, String> {
+    let output = match Command::new("hyprctl").args(["monitors", "-j"]).output() {
+        Ok(output) => output,
+        Err(_) => return Ok(None),
+    };
+
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let value: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|err| format!("Failed to parse `hyprctl monitors -j` output: {err}"))?;
+    let monitors = value
+        .as_array()
+        .ok_or_else(|| "Unexpected `hyprctl monitors -j` output".to_string())?;
+
+    for monitor in monitors {
+        let name = monitor
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if name != output_name {
+            continue;
+        }
+
+        let x = monitor
+            .get("x")
+            .and_then(Value::as_f64)
+            .unwrap_or_default()
+            .round() as i32;
+        let y = monitor
+            .get("y")
+            .and_then(Value::as_f64)
+            .unwrap_or_default()
+            .round() as i32;
+        let w = monitor
+            .get("width")
+            .and_then(Value::as_f64)
+            .unwrap_or_default()
+            .round() as i32;
+        let h = monitor
+            .get("height")
+            .and_then(Value::as_f64)
+            .unwrap_or_default()
+            .round() as i32;
+
+        if w > 0 && h > 0 {
+            return Ok(Some(format!("{x},{y} {w}x{h}")));
+        }
+    }
+
+    Ok(None)
+}
+
+fn detect_sway_output_geometry(output_name: &str) -> Result<Option<String>, String> {
+    let output = match Command::new("swaymsg").args(["-t", "get_outputs"]).output() {
+        Ok(output) => output,
+        Err(_) => return Ok(None),
+    };
+
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let value: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|err| format!("Failed to parse `swaymsg -t get_outputs` output: {err}"))?;
+    let outputs = value
+        .as_array()
+        .ok_or_else(|| "Unexpected `swaymsg -t get_outputs` output".to_string())?;
+
+    for entry in outputs {
+        let name = entry
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if name != output_name {
+            continue;
+        }
+
+        let Some(rect) = entry.get("rect").and_then(Value::as_object) else {
+            continue;
+        };
+        let x = rect
+            .get("x")
+            .and_then(Value::as_f64)
+            .unwrap_or_default()
+            .round() as i32;
+        let y = rect
+            .get("y")
+            .and_then(Value::as_f64)
+            .unwrap_or_default()
+            .round() as i32;
+        let w = rect
+            .get("width")
+            .and_then(Value::as_f64)
+            .unwrap_or_default()
+            .round() as i32;
+        let h = rect
+            .get("height")
+            .and_then(Value::as_f64)
+            .unwrap_or_default()
+            .round() as i32;
+
+        if w > 0 && h > 0 {
+            return Ok(Some(format!("{x},{y} {w}x{h}")));
+        }
+    }
+
+    Ok(None)
 }
 
 fn push_audio_device(devices: &mut Vec<AudioDevice>, name: &mut String, description: &mut String) {

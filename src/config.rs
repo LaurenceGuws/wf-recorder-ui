@@ -55,6 +55,7 @@ impl RecorderConfig {
     pub fn build_command_args(
         &self,
         timestamp_override: Option<String>,
+        screen_geometry_override: Option<String>,
     ) -> Result<(Vec<String>, String), String> {
         let mut args = Vec::new();
 
@@ -138,6 +139,11 @@ impl RecorderConfig {
         match self.capture_mode {
             CaptureMode::Screen => {
                 push_arg(&mut args, "--output", &self.output);
+                if !self.output.trim().is_empty() {
+                    if let Some(geometry) = screen_geometry_override {
+                        push_arg(&mut args, "--geometry", &geometry);
+                    }
+                }
             }
             CaptureMode::Window => {
                 let geometry = self.selected_window_geometry.trim();
@@ -298,4 +304,50 @@ fn expand_home(path: String) -> String {
         }
     }
     path
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CaptureMode, RecorderConfig};
+
+    fn index_of(args: &[String], value: &str) -> Option<usize> {
+        args.iter().position(|arg| arg == value)
+    }
+
+    #[test]
+    fn screen_mode_includes_geometry_override_when_output_selected() {
+        let mut config = RecorderConfig::default();
+        config.capture_mode = CaptureMode::Screen;
+        config.output = "HDMI-A-1".to_string();
+
+        let (args, _) = config
+            .build_command_args(
+                Some("2026-03-02_15-00-00".to_string()),
+                Some("0,0 3840x2160".to_string()),
+            )
+            .expect("command args should be built");
+
+        let output_idx = index_of(&args, "--output").expect("--output should exist");
+        assert_eq!(args[output_idx + 1], "HDMI-A-1");
+
+        let geometry_idx = index_of(&args, "--geometry").expect("--geometry should exist");
+        assert_eq!(args[geometry_idx + 1], "0,0 3840x2160");
+    }
+
+    #[test]
+    fn screen_mode_skips_geometry_override_without_output() {
+        let mut config = RecorderConfig::default();
+        config.capture_mode = CaptureMode::Screen;
+        config.output.clear();
+
+        let (args, _) = config
+            .build_command_args(
+                Some("2026-03-02_15-00-00".to_string()),
+                Some("0,0 3840x2160".to_string()),
+            )
+            .expect("command args should be built");
+
+        assert!(index_of(&args, "--output").is_none());
+        assert!(index_of(&args, "--geometry").is_none());
+    }
 }

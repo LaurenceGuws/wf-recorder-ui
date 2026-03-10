@@ -13,8 +13,10 @@ use std::{fs, path::Path};
 use std::os::unix::process::ExitStatusExt;
 
 use crate::actions::{SimpleAction, run_simple_command};
-use crate::config::RecorderConfig;
-use crate::discovery::{detect_audio_devices, detect_outputs, detect_windows};
+use crate::config::{CaptureMode, RecorderConfig};
+use crate::discovery::{
+    detect_audio_devices, detect_output_geometry, detect_outputs, detect_windows,
+};
 use crate::models::{
     AudioDevice, LogEntry, LogSource, OutputChoice, RecorderProcess, RecorderStatus, WindowChoice,
 };
@@ -120,7 +122,11 @@ impl RecorderApp {
     }
 
     pub(super) fn start_recording(&mut self) {
-        let (args, output_file) = match self.config.build_command_args(None) {
+        let screen_geometry_override = self.detect_screen_geometry_override();
+        let (args, output_file) = match self
+            .config
+            .build_command_args(None, screen_geometry_override)
+        {
             Ok(result) => result,
             Err(err) => {
                 self.last_error = Some(err);
@@ -448,7 +454,10 @@ impl RecorderApp {
 
     pub(super) fn build_command_preview(&self) -> Result<String, String> {
         let preview_timestamp = Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
-        let (args, _) = self.config.build_command_args(Some(preview_timestamp))?;
+        let (args, _) = self.config.build_command_args(
+            Some(preview_timestamp),
+            self.detect_screen_geometry_override(),
+        )?;
         Ok(shell_preview(args))
     }
 
@@ -460,6 +469,18 @@ impl RecorderApp {
         let mut collected: Vec<&str> = buffer.lines().rev().take(lines).collect();
         collected.reverse();
         Some(collected.join("\n"))
+    }
+
+    fn detect_screen_geometry_override(&self) -> Option<String> {
+        if self.config.capture_mode != CaptureMode::Screen {
+            return None;
+        }
+        let output = self.config.output.trim();
+        if output.is_empty() {
+            return None;
+        }
+
+        detect_output_geometry(output).ok().flatten()
     }
 }
 

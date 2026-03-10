@@ -57,6 +57,8 @@ fn sidebar_icon_source(icon: SidebarIcon, dark: bool) -> (&'static str, &'static
 
 impl App for RecorderApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
+        let config_snapshot = self.config.clone();
+
         self.poll_process();
         self.poll_async_tasks();
 
@@ -210,7 +212,7 @@ impl App for RecorderApp {
             egui::Area::new("sidebar_reveal".into())
                 .anchor(Align2::LEFT_CENTER, [8.0, 0.0])
                 .show(ctx, |ui| {
-                    egui::Frame::window(&ui.style()).show(ui, |ui| {
+                    egui::Frame::window(ui.style()).show(ui, |ui| {
                         if ui.button("▶").clicked() {
                             self.toggle_sidebar();
                         }
@@ -219,7 +221,7 @@ impl App for RecorderApp {
         }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
-            ui.heading("");
+            ui.add_space(4.0);
             let controls_width = ui.available_width();
             self.recording_controls(ui, controls_width);
             ui.separator();
@@ -229,16 +231,9 @@ impl App for RecorderApp {
                 ui.separator();
             }
 
-            if let RecorderStatus::Running(process) = &self.status {
-                let elapsed = process.started_at.elapsed().as_secs_f32();
-                ui.colored_label(
-                    Color32::from_rgb(120, 210, 255),
-                    format!(
-                        "Recording… {:.1}s elapsed. Stop when you’re ready.",
-                        elapsed
-                    ),
-                );
-            } else if let Some(summary) = &self.last_recording_summary {
+            if !self.status.is_running()
+                && let Some(summary) = &self.last_recording_summary
+            {
                 ui.colored_label(Color32::LIGHT_GREEN, summary);
             }
 
@@ -259,6 +254,16 @@ impl App for RecorderApp {
                     }
                 });
         });
+
+        // Persist whenever the user changes any setting
+        if self.config != config_snapshot {
+            crate::persistence::save_config(&self.config);
+        }
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        // Final save on close — catches any unsaved state
+        crate::persistence::save_config(&self.config);
     }
 }
 
@@ -526,28 +531,30 @@ impl RecorderApp {
                     "Video codec",
                     "Sets -c/--codec. Pick a preset or type a custom encoder name.",
                 );
-                let codec_label = COMMON_VIDEO_CODECS
-                    .iter()
-                    .find(|(_, value)| *value == self.config.codec)
-                    .map(|(label, _)| *label)
-                    .unwrap_or("Custom");
-                egui::ComboBox::from_id_source("codec_combo")
-                    .width(field_width.min(ui.available_width()))
-                    .selected_text(codec_label)
-                    .show_ui(ui, |ui| {
-                        for (label, value) in COMMON_VIDEO_CODECS {
-                            ui.selectable_value(
-                                &mut self.config.codec,
-                                value.to_string(),
-                                label.to_owned(),
-                            );
-                        }
-                    });
-                ui.add(
-                    TextEdit::singleline(&mut self.config.codec)
-                        .desired_width(field_width.min(ui.available_width()))
-                        .hint_text("libx264"),
-                );
+                ui.vertical(|ui| {
+                    let codec_label = COMMON_VIDEO_CODECS
+                        .iter()
+                        .find(|(_, value)| *value == self.config.codec)
+                        .map(|(label, _)| *label)
+                        .unwrap_or("Custom");
+                    egui::ComboBox::from_id_source("codec_combo")
+                        .width(field_width.min(ui.available_width()))
+                        .selected_text(codec_label)
+                        .show_ui(ui, |ui| {
+                            for (label, value) in COMMON_VIDEO_CODECS {
+                                ui.selectable_value(
+                                    &mut self.config.codec,
+                                    value.to_string(),
+                                    label.to_owned(),
+                                );
+                            }
+                        });
+                    ui.add(
+                        TextEdit::singleline(&mut self.config.codec)
+                            .desired_width(field_width.min(ui.available_width()))
+                            .hint_text("libx264"),
+                    );
+                });
                 ui.end_row();
 
                 label_with_help(
@@ -562,11 +569,15 @@ impl RecorderApp {
                 );
                 ui.end_row();
 
-                ui.label(RichText::new("Extra codec params").strong());
+                label_with_help(
+                    ui,
+                    "Extra codec params",
+                    "Adds -p/--codec-param entries (format: key=value).",
+                );
                 render_param_editor(
                     ui,
-                    "Codec parameter",
-                    "Adds -p/--codec-param entries (format: key=value).",
+                    "",
+                    "",
                     &mut self.config.codec_params,
                     field_width,
                 );
@@ -682,8 +693,6 @@ impl RecorderApp {
         if let Some(err) = &self.audio_devices_error {
             ui.colored_label(Color32::from_rgb(255, 120, 120), err);
         }
-        self.config.audio_enabled = !matches!(self.config.audio_mode, AudioMode::None);
-
         ui.add_space(6.0);
         match self.config.audio_mode {
             AudioMode::None => {

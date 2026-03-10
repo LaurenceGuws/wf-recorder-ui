@@ -15,7 +15,8 @@ use std::os::unix::process::ExitStatusExt;
 use crate::actions::{SimpleAction, run_simple_command};
 use crate::config::{CaptureMode, RecorderConfig};
 use crate::discovery::{
-    detect_audio_devices, detect_output_geometry, detect_outputs, detect_windows,
+    detect_audio_devices, detect_fractional_scale, detect_output_geometry, detect_outputs,
+    detect_windows,
 };
 use crate::models::{
     AudioDevice, LogEntry, LogSource, OutputChoice, RecorderProcess, RecorderStatus, WindowChoice,
@@ -89,7 +90,7 @@ impl RecorderApp {
 
     pub fn new() -> Self {
         let mut app = Self {
-            config: RecorderConfig::default(),
+            config: crate::persistence::load_config(),
             status: RecorderStatus::default(),
             current_section: Section::CaptureBasics,
             log_entries: Arc::new(Mutex::new(Vec::new())),
@@ -122,10 +123,11 @@ impl RecorderApp {
     }
 
     pub(super) fn start_recording(&mut self) {
+        let fractional_scale = detect_fractional_scale();
         let screen_geometry_override = self.detect_screen_geometry_override();
         let (args, output_file) = match self
             .config
-            .build_command_args(None, screen_geometry_override)
+            .build_command_args(None, screen_geometry_override, fractional_scale)
         {
             Ok(result) => result,
             Err(err) => {
@@ -133,14 +135,15 @@ impl RecorderApp {
                 return;
             }
         };
-        if let Some(parent) = Path::new(&output_file).parent() {
-            if let Err(err) = fs::create_dir_all(parent) {
-                self.last_error = Some(format!(
-                    "Failed to create output directory {}: {err}",
-                    parent.display()
-                ));
-                return;
-            }
+
+        if let Some(parent) = Path::new(&output_file).parent()
+            && let Err(err) = fs::create_dir_all(parent)
+        {
+            self.last_error = Some(format!(
+                "Failed to create output directory {}: {err}",
+                parent.display()
+            ));
+            return;
         }
 
         let mut command = Command::new("wf-recorder");
@@ -340,85 +343,85 @@ impl RecorderApp {
     }
 
     pub(super) fn poll_async_tasks(&mut self) {
-        if self.outputs_loading {
-            if let Some(receiver) = &self.outputs_receiver {
-                match receiver.try_recv() {
-                    Ok(Ok(outputs)) => {
-                        self.available_outputs = outputs;
-                        self.outputs_loading = false;
-                        self.outputs_receiver = None;
-                        self.outputs_error = None;
-                    }
-                    Ok(Err(err)) => {
-                        self.outputs_error = Some(err);
-                        self.outputs_loading = false;
-                        self.outputs_receiver = None;
-                    }
-                    Err(TryRecvError::Empty) => {}
-                    Err(TryRecvError::Disconnected) => {
-                        self.outputs_loading = false;
-                        self.outputs_receiver = None;
-                        self.outputs_error =
-                            Some("Background task disconnected unexpectedly.".to_string());
-                    }
+        if self.outputs_loading
+            && let Some(receiver) = &self.outputs_receiver
+        {
+            match receiver.try_recv() {
+                Ok(Ok(outputs)) => {
+                    self.available_outputs = outputs;
+                    self.outputs_loading = false;
+                    self.outputs_receiver = None;
+                    self.outputs_error = None;
+                }
+                Ok(Err(err)) => {
+                    self.outputs_error = Some(err);
+                    self.outputs_loading = false;
+                    self.outputs_receiver = None;
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    self.outputs_loading = false;
+                    self.outputs_receiver = None;
+                    self.outputs_error =
+                        Some("Background task disconnected unexpectedly.".to_string());
                 }
             }
         }
 
-        if self.windows_loading {
-            if let Some(receiver) = &self.windows_receiver {
-                match receiver.try_recv() {
-                    Ok(Ok(windows)) => {
-                        self.available_windows = windows;
-                        self.windows_loading = false;
-                        self.windows_receiver = None;
-                        self.windows_error = None;
-                    }
-                    Ok(Err(err)) => {
-                        self.windows_error = Some(err);
-                        self.windows_loading = false;
-                        self.windows_receiver = None;
-                    }
-                    Err(TryRecvError::Empty) => {}
-                    Err(TryRecvError::Disconnected) => {
-                        self.windows_loading = false;
-                        self.windows_receiver = None;
-                        self.windows_error =
-                            Some("Window refresh task disconnected unexpectedly.".to_string());
-                    }
+        if self.windows_loading
+            && let Some(receiver) = &self.windows_receiver
+        {
+            match receiver.try_recv() {
+                Ok(Ok(windows)) => {
+                    self.available_windows = windows;
+                    self.windows_loading = false;
+                    self.windows_receiver = None;
+                    self.windows_error = None;
+                }
+                Ok(Err(err)) => {
+                    self.windows_error = Some(err);
+                    self.windows_loading = false;
+                    self.windows_receiver = None;
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    self.windows_loading = false;
+                    self.windows_receiver = None;
+                    self.windows_error =
+                        Some("Window refresh task disconnected unexpectedly.".to_string());
                 }
             }
         }
 
-        if self.audio_devices_loading {
-            if let Some(receiver) = &self.audio_devices_receiver {
-                match receiver.try_recv() {
-                    Ok(Ok(devices)) => {
-                        self.available_audio_devices = devices;
-                        self.audio_devices_loading = false;
-                        self.audio_devices_receiver = None;
-                        self.audio_devices_error = None;
-                    }
-                    Ok(Err(err)) => {
-                        self.audio_devices_error = Some(err);
-                        self.audio_devices_loading = false;
-                        self.audio_devices_receiver = None;
-                    }
-                    Err(TryRecvError::Empty) => {}
-                    Err(TryRecvError::Disconnected) => {
-                        self.audio_devices_loading = false;
-                        self.audio_devices_receiver = None;
-                        self.audio_devices_error =
-                            Some("Audio refresh task disconnected unexpectedly.".to_string());
-                    }
+        if self.audio_devices_loading
+            && let Some(receiver) = &self.audio_devices_receiver
+        {
+            match receiver.try_recv() {
+                Ok(Ok(devices)) => {
+                    self.available_audio_devices = devices;
+                    self.audio_devices_loading = false;
+                    self.audio_devices_receiver = None;
+                    self.audio_devices_error = None;
+                }
+                Ok(Err(err)) => {
+                    self.audio_devices_error = Some(err);
+                    self.audio_devices_loading = false;
+                    self.audio_devices_receiver = None;
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    self.audio_devices_loading = false;
+                    self.audio_devices_receiver = None;
+                    self.audio_devices_error =
+                        Some("Audio refresh task disconnected unexpectedly.".to_string());
                 }
             }
         }
 
-        if self.log_dirty.swap(false, Ordering::Relaxed) {
-            if let Ok(buffer) = self.log_buffer.lock() {
-                self.log_display = buffer.clone();
-            }
+        if self.log_dirty.swap(false, Ordering::Relaxed)
+            && let Ok(buffer) = self.log_buffer.lock()
+        {
+            self.log_display = buffer.clone();
         }
     }
 
@@ -456,6 +459,7 @@ impl RecorderApp {
         let (args, _) = self.config.build_command_args(
             Some(preview_timestamp),
             self.detect_screen_geometry_override(),
+            detect_fractional_scale(),
         )?;
         Ok(shell_preview(args))
     }
@@ -474,12 +478,7 @@ impl RecorderApp {
         if self.config.capture_mode != CaptureMode::Screen {
             return None;
         }
-        let output = self.config.output.trim();
-        if output.is_empty() {
-            return None;
-        }
-
-        detect_output_geometry(output).ok().flatten()
+        detect_output_geometry(self.config.output.trim()).ok().flatten()
     }
 }
 
@@ -569,25 +568,17 @@ fn shell_escape(arg: String) -> String {
 
 pub(super) fn format_exit_status(status: ExitStatus) -> String {
     if let Some(code) = status.code() {
-        format!(", exit code {code}")
-    } else {
-        #[cfg(unix)]
-        {
-            if let Some(signal) = status.signal() {
-                return format!(
-                    ", terminated by signal {} ({})",
-                    signal,
-                    signal_name(signal)
-                );
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            return ", terminated by signal".to_string();
-        }
-        #[cfg(unix)]
-        ", terminated by signal".to_string()
+        return format!(", exit code {code}");
     }
+    #[cfg(unix)]
+    if let Some(signal) = status.signal() {
+        return format!(
+            ", terminated by signal {} ({})",
+            signal,
+            signal_name(signal)
+        );
+    }
+    ", terminated by signal".to_string()
 }
 
 #[cfg(unix)]

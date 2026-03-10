@@ -58,6 +58,7 @@ impl RecorderConfig {
         &self,
         timestamp_override: Option<String>,
         screen_geometry_override: Option<String>,
+        fractional_scale: Option<f64>,
     ) -> Result<(Vec<String>, String), String> {
         let mut args = Vec::new();
 
@@ -152,8 +153,11 @@ impl RecorderConfig {
                         "Select a window from the list before starting the recording.".to_string(),
                     );
                 }
+                let scaled = fractional_scale
+                    .and_then(|s| crate::discovery::scale_geometry(geometry, s))
+                    .unwrap_or_else(|| geometry.to_string());
                 args.push("--geometry".to_string());
-                args.push(geometry.to_string());
+                args.push(scaled);
             }
             CaptureMode::Area => {
                 let geometry = self.area_geometry.trim();
@@ -163,8 +167,11 @@ impl RecorderConfig {
                             .to_string(),
                     );
                 }
+                let scaled = fractional_scale
+                    .and_then(|s| crate::discovery::scale_geometry(geometry, s))
+                    .unwrap_or_else(|| geometry.to_string());
                 args.push("--geometry".to_string());
-                args.push(geometry.to_string());
+                args.push(scaled);
             }
         }
 
@@ -324,6 +331,7 @@ mod tests {
             .build_command_args(
                 Some("2026-03-02_15-00-00".to_string()),
                 Some("0,0 3840x2160".to_string()),
+                None,
             )
             .expect("command args should be built");
 
@@ -344,6 +352,7 @@ mod tests {
             .build_command_args(
                 Some("2026-03-02_15-00-00".to_string()),
                 Some("0,0 3840x2160".to_string()),
+                None,
             )
             .expect("command args should be built");
 
@@ -359,9 +368,27 @@ mod tests {
         config.output.clear();
 
         let (args, _) = config
-            .build_command_args(Some("2026-03-02_15-00-00".to_string()), None)
+            .build_command_args(Some("2026-03-02_15-00-00".to_string()), None, None)
             .expect("command args should be built");
 
         assert!(index_of(&args, "--geometry").is_none());
+    }
+
+    #[test]
+    fn area_mode_scales_geometry_with_fractional_scale() {
+        let mut config = RecorderConfig::default();
+        config.capture_mode = CaptureMode::Area;
+        config.area_geometry = "100,200 500x300".to_string();
+
+        let (args, _) = config
+            .build_command_args(
+                Some("2026-03-10_00-00-00".to_string()),
+                None,
+                Some(1.6),
+            )
+            .expect("command args should be built");
+
+        let geometry_idx = index_of(&args, "--geometry").expect("--geometry should exist");
+        assert_eq!(args[geometry_idx + 1], "160,320 800x480");
     }
 }

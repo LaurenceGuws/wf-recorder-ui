@@ -15,7 +15,8 @@ use std::os::unix::process::ExitStatusExt;
 use crate::actions::{SimpleAction, run_simple_command};
 use crate::config::{CaptureMode, RecorderConfig};
 use crate::discovery::{
-    detect_audio_devices, detect_output_geometry, detect_outputs, detect_windows,
+    detect_audio_devices, detect_fractional_scale, detect_output_geometry, detect_outputs,
+    detect_windows,
 };
 use crate::models::{
     AudioDevice, LogEntry, LogSource, OutputChoice, RecorderProcess, RecorderStatus, WindowChoice,
@@ -122,10 +123,11 @@ impl RecorderApp {
     }
 
     pub(super) fn start_recording(&mut self) {
+        let fractional_scale = detect_fractional_scale();
         let screen_geometry_override = self.detect_screen_geometry_override();
         let (args, output_file) = match self
             .config
-            .build_command_args(None, screen_geometry_override)
+            .build_command_args(None, screen_geometry_override, fractional_scale)
         {
             Ok(result) => result,
             Err(err) => {
@@ -457,6 +459,7 @@ impl RecorderApp {
         let (args, _) = self.config.build_command_args(
             Some(preview_timestamp),
             self.detect_screen_geometry_override(),
+            detect_fractional_scale(),
         )?;
         Ok(shell_preview(args))
     }

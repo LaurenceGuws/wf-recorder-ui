@@ -80,6 +80,81 @@ pub fn detect_output_geometry(output_name: &str) -> Result<Option<String>, Strin
     Ok(None)
 }
 
+/// Returns the fractional scale of the focused monitor, or `None` if scale is
+/// integer (1.0, 2.0, etc.) or cannot be determined.
+pub fn detect_fractional_scale() -> Option<f64> {
+    if let Some(scale) = detect_hypr_focused_scale()
+        && (scale - scale.round()).abs() >= 0.001
+    {
+        return Some(scale);
+    }
+    if let Some(scale) = detect_sway_focused_scale()
+        && (scale - scale.round()).abs() >= 0.001
+    {
+        return Some(scale);
+    }
+    None
+}
+
+fn detect_hypr_focused_scale() -> Option<f64> {
+    let output = Command::new("hyprctl")
+        .args(["monitors", "-j"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value: Value = serde_json::from_slice(&output.stdout).ok()?;
+    let monitors = value.as_array()?;
+    for monitor in monitors {
+        if monitor.get("focused").and_then(Value::as_bool) == Some(true) {
+            return monitor.get("scale").and_then(Value::as_f64);
+        }
+    }
+    None
+}
+
+fn detect_sway_focused_scale() -> Option<f64> {
+    let output = Command::new("swaymsg")
+        .args(["-t", "get_outputs"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value: Value = serde_json::from_slice(&output.stdout).ok()?;
+    let outputs = value.as_array()?;
+    for entry in outputs {
+        if entry.get("focused").and_then(Value::as_bool) == Some(true) {
+            return entry.get("scale").and_then(Value::as_f64);
+        }
+    }
+    None
+}
+
+/// Scale a geometry string "x,y WxH" by the given factor.
+pub fn scale_geometry(geometry: &str, scale: f64) -> Option<String> {
+    // Format: "x,y WxH"
+    let parts: Vec<&str> = geometry.split_whitespace().collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    let xy: Vec<&str> = parts[0].split(',').collect();
+    let wh: Vec<&str> = parts[1].split('x').collect();
+    if xy.len() != 2 || wh.len() != 2 {
+        return None;
+    }
+    let x = xy[0].parse::<f64>().ok()?;
+    let y = xy[1].parse::<f64>().ok()?;
+    let w = wh[0].parse::<f64>().ok()?;
+    let h = wh[1].parse::<f64>().ok()?;
+    let sx = (x * scale).round() as i64;
+    let sy = (y * scale).round() as i64;
+    let sw = (w * scale).round() as i64;
+    let sh = (h * scale).round() as i64;
+    Some(format!("{sx},{sy} {sw}x{sh}"))
+}
+
 pub fn detect_audio_devices() -> Result<Vec<AudioDevice>, String> {
     detect_audio_devices_with_pactl()
 }

@@ -70,10 +70,6 @@ pub fn detect_outputs() -> Result<Vec<OutputChoice>, String> {
 }
 
 pub fn detect_output_geometry(output_name: &str) -> Result<Option<String>, String> {
-    if output_name.trim().is_empty() {
-        return Ok(None);
-    }
-
     if let Some(geometry) = detect_hypr_output_geometry(output_name)? {
         return Ok(Some(geometry));
     }
@@ -147,8 +143,27 @@ fn detect_hypr_output_geometry(output_name: &str) -> Result<Option<String>, Stri
             .get("name")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        if name != output_name {
+
+        let matches = if output_name.trim().is_empty() {
+            // No output specified: pick the focused monitor
+            monitor
+                .get("focused")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        } else {
+            name == output_name
+        };
+        if !matches {
             continue;
+        }
+
+        let scale = monitor
+            .get("scale")
+            .and_then(Value::as_f64)
+            .unwrap_or(1.0);
+        // Only override geometry when fractional scaling is active
+        if (scale - scale.round()).abs() < 0.001 {
+            return Ok(None);
         }
 
         let x = monitor
@@ -201,8 +216,26 @@ fn detect_sway_output_geometry(output_name: &str) -> Result<Option<String>, Stri
             .get("name")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        if name != output_name {
+
+        let matches = if output_name.trim().is_empty() {
+            entry
+                .get("focused")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        } else {
+            name == output_name
+        };
+        if !matches {
             continue;
+        }
+
+        // Only override when fractional scaling is active
+        let scale = entry
+            .get("scale")
+            .and_then(Value::as_f64)
+            .unwrap_or(1.0);
+        if (scale - scale.round()).abs() < 0.001 {
+            return Ok(None);
         }
 
         let Some(rect) = entry.get("rect").and_then(Value::as_object) else {

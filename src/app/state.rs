@@ -475,12 +475,7 @@ impl RecorderApp {
         if self.config.capture_mode != CaptureMode::Screen {
             return None;
         }
-        let output = self.config.output.trim();
-        if output.is_empty() {
-            return None;
-        }
-
-        detect_output_geometry(output).ok().flatten()
+        detect_output_geometry(self.config.output.trim()).ok().flatten()
     }
 }
 

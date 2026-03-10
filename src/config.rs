@@ -141,10 +141,8 @@ impl RecorderConfig {
         match self.capture_mode {
             CaptureMode::Screen => {
                 push_arg(&mut args, "--output", &self.output);
-                if !self.output.trim().is_empty() {
-                    if let Some(geometry) = screen_geometry_override {
-                        push_arg(&mut args, "--geometry", &geometry);
-                    }
+                if let Some(geometry) = screen_geometry_override {
+                    push_arg(&mut args, "--geometry", &geometry);
                 }
             }
             CaptureMode::Window => {
@@ -337,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn screen_mode_skips_geometry_override_without_output() {
+    fn screen_mode_passes_geometry_even_without_output() {
         let mut config = RecorderConfig::default();
         config.capture_mode = CaptureMode::Screen;
         config.output.clear();
@@ -350,6 +348,20 @@ mod tests {
             .expect("command args should be built");
 
         assert!(index_of(&args, "--output").is_none());
+        let geometry_idx = index_of(&args, "--geometry").expect("--geometry should exist");
+        assert_eq!(args[geometry_idx + 1], "0,0 3840x2160");
+    }
+
+    #[test]
+    fn screen_mode_skips_geometry_when_none_provided() {
+        let mut config = RecorderConfig::default();
+        config.capture_mode = CaptureMode::Screen;
+        config.output.clear();
+
+        let (args, _) = config
+            .build_command_args(Some("2026-03-02_15-00-00".to_string()), None)
+            .expect("command args should be built");
+
         assert!(index_of(&args, "--geometry").is_none());
     }
 }

@@ -531,28 +531,30 @@ impl RecorderApp {
                     "Video codec",
                     "Sets -c/--codec. Pick a preset or type a custom encoder name.",
                 );
-                let codec_label = COMMON_VIDEO_CODECS
-                    .iter()
-                    .find(|(_, value)| *value == self.config.codec)
-                    .map(|(label, _)| *label)
-                    .unwrap_or("Custom");
-                egui::ComboBox::from_id_source("codec_combo")
-                    .width(field_width.min(ui.available_width()))
-                    .selected_text(codec_label)
-                    .show_ui(ui, |ui| {
-                        for (label, value) in COMMON_VIDEO_CODECS {
-                            ui.selectable_value(
-                                &mut self.config.codec,
-                                value.to_string(),
-                                label.to_owned(),
-                            );
-                        }
-                    });
-                ui.add(
-                    TextEdit::singleline(&mut self.config.codec)
-                        .desired_width(field_width.min(ui.available_width()))
-                        .hint_text("libx264"),
-                );
+                ui.vertical(|ui| {
+                    let codec_label = COMMON_VIDEO_CODECS
+                        .iter()
+                        .find(|(_, value)| *value == self.config.codec)
+                        .map(|(label, _)| *label)
+                        .unwrap_or("Custom");
+                    egui::ComboBox::from_id_source("codec_combo")
+                        .width(field_width.min(ui.available_width()))
+                        .selected_text(codec_label)
+                        .show_ui(ui, |ui| {
+                            for (label, value) in COMMON_VIDEO_CODECS {
+                                ui.selectable_value(
+                                    &mut self.config.codec,
+                                    value.to_string(),
+                                    label.to_owned(),
+                                );
+                            }
+                        });
+                    ui.add(
+                        TextEdit::singleline(&mut self.config.codec)
+                            .desired_width(field_width.min(ui.available_width()))
+                            .hint_text("libx264"),
+                    );
+                });
                 ui.end_row();
 
                 label_with_help(
@@ -567,11 +569,15 @@ impl RecorderApp {
                 );
                 ui.end_row();
 
-                ui.label(RichText::new("Extra codec params").strong());
+                label_with_help(
+                    ui,
+                    "Extra codec params",
+                    "Adds -p/--codec-param entries (format: key=value).",
+                );
                 render_param_editor(
                     ui,
-                    "Codec parameter",
-                    "Adds -p/--codec-param entries (format: key=value).",
+                    "",
+                    "",
                     &mut self.config.codec_params,
                     field_width,
                 );
